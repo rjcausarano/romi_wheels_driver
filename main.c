@@ -30,11 +30,13 @@
 #define _XTAL_FREQ 16000000
 #define _SLAVE_ADDRESS 4
 #define PWM_PERCENT_COMMAND 1
+#define WHEEL_DIR_COMMAND 2
 #define LED_COMMAND 5
 
 #include <xc.h>
 #include "pic_libs/i2c.h"
 #include "pic_libs/pwm.h"
+#include "pic_libs/speed.h"
 
 
 char pwm_speed = 0;
@@ -53,6 +55,19 @@ void setup_led(){
     RC3 = 0;
 }
 
+void setup_dir(){
+    TRISA5 = 0;
+    RA5 = 0;
+}
+
+char get_dir(){
+    return RA5;
+}
+
+void set_dir(char fw_bw){
+    RA5 = (__bit) fw_bw;
+}
+
 char on_byte_read(char offset){
     switch(offset){
         case LED_COMMAND:
@@ -60,6 +75,9 @@ char on_byte_read(char offset){
             break;
         case PWM_PERCENT_COMMAND:
             return pwm_speed;
+            break;
+        case WHEEL_DIR_COMMAND:
+            return get_dir();
             break;
         default:
             return 0xFF;
@@ -75,7 +93,16 @@ void on_byte_write(char offset, char byte){
             pwm_speed = byte;
             set_duty_percent(pwm_speed);
             break;
+        case WHEEL_DIR_COMMAND:
+            set_dir(byte);
+            break;
     }
+}
+
+char hi_ = 0, lo_ = 0;
+void on_speed_interrupt(char hi, char lo){
+    hi_ = hi;
+    lo_ = lo;
 }
 
 void setup_clock(){
@@ -90,13 +117,18 @@ void setup(){
     setup_led();
     // TODO: Check if this ANSEL line can be removed
     ANSELA = 0;
+    setup_dir();
     setup_pwm();
-    setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read); // slave on address
+    // slave on address _SLAVE_ADDRESS
+    setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read);
+    setup_speed(on_speed_interrupt);
 }
 
 void __interrupt() int_routine(void){
     if (SSPIF){ // received data through i2c
         process_interrupt_i2c();
+    } else if(CCP2IF){
+        process_interrupts_speed();
     }
 }
 
