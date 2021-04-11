@@ -1,0 +1,3 @@
+[submodule "pic_libs"]
+	path = pic_libs
+	url = git@github.com:rjcausarano/pic_libs.git
