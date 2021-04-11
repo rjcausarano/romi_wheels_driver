@@ -29,25 +29,22 @@
 
 #define _XTAL_FREQ 16000000
 #define _SLAVE_ADDRESS 4
-#define PWM_SPEED_COMMAND 1
+#define PWM_PERCENT_COMMAND 1
 #define LED_COMMAND 5
 
 #include <xc.h>
 #include "pic_libs/i2c.h"
+#include "pic_libs/pwm.h"
 
 
 char pwm_speed = 0;
-
-void toggle_led(){
-    RC3 = !RC3;
-}
 
 char get_led(){
     return RC3;
 }
 
 void set_led(char on_off){
-    RC3 = on_off;
+    RC3 = (__bit) on_off;
 }
 
 void setup_led(){
@@ -61,7 +58,7 @@ char on_byte_read(char offset){
         case LED_COMMAND:
             return get_led();
             break;
-        case PWM_SPEED_COMMAND:
+        case PWM_PERCENT_COMMAND:
             return pwm_speed;
             break;
         default:
@@ -74,8 +71,9 @@ void on_byte_write(char offset, char byte){
         case LED_COMMAND:
             set_led(byte);
             break;
-        case PWM_SPEED_COMMAND:
+        case PWM_PERCENT_COMMAND:
             pwm_speed = byte;
+            set_duty_percent(pwm_speed);
             break;
     }
 }
@@ -90,6 +88,9 @@ void setup_clock(){
 void setup(){
     setup_clock();
     setup_led();
+    // TODO: Check if this ANSEL line can be removed
+    ANSELA = 0;
+    setup_pwm();
     setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read); // slave on address
 }
 
