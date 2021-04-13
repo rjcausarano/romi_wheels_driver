@@ -27,7 +27,26 @@
 // #pragma config statements should precede project file includes.
 // Use project enums instead of #define for ON and OFF.
 
+/*
+ * This PIC is a driver to a robot wheel and thus is in charge of applying the 
+ * commanded velocity to the DC motor that it is attached to. This chip has to 
+ * manage I2C communication to the master, calculate the current wheel speed and
+ * apply the correct PWM output to the wheel via PID to match the requested 
+ * wheel velocity requested by the master. 
+ * 
+ * The code below has the goal of maximizing performance. Fast response times 
+ * at a vast range of wheel speeds is prefferred at the cost of more power drawn
+ * and maybe more resources could be used.
+ * 
+ * Interrupts are kept to a minimum to delay PID and I2C communication 
+ * processing as least as possible.
+ * 
+ * If you think you can improve this chip's performance PLEASE OPEN A PR!! It
+ * will be greatly appreciated.
+ */
+
 #define _XTAL_FREQ 16000000
+#define INSTRUCTION_FREQ 4000000
 #define _SLAVE_ADDRESS 4
 #define PWM_PERCENT_COMMAND 1
 #define WHEEL_DIR_COMMAND 2
@@ -36,10 +55,11 @@
 #include <xc.h>
 #include "pic_libs/i2c.h"
 #include "pic_libs/pwm.h"
-#include "pic_libs/speed.h"
+#include "speed.h"
+#include <limits.h>
 
-
-char pwm_speed = 0;
+char pwm_speed_ = 0;
+unsigned int encoder_counts_ = 0, pwm_period_us_ = 0;
 
 char get_led(){
     return RC3;
@@ -74,7 +94,7 @@ char on_byte_read(char offset){
             return get_led();
             break;
         case PWM_PERCENT_COMMAND:
-            return pwm_speed;
+            return pwm_speed_;
             break;
         case WHEEL_DIR_COMMAND:
             return get_dir();
@@ -90,19 +110,13 @@ void on_byte_write(char offset, char byte){
             set_led(byte);
             break;
         case PWM_PERCENT_COMMAND:
-            pwm_speed = byte;
-            set_duty_percent(pwm_speed);
+            pwm_speed_ = byte;
+            set_duty_percent_pwm(pwm_speed_);
             break;
         case WHEEL_DIR_COMMAND:
             set_dir(byte);
             break;
     }
-}
-
-char hi_ = 0, lo_ = 0;
-void on_speed_interrupt(char hi, char lo){
-    hi_ = hi;
-    lo_ = lo;
 }
 
 void setup_clock(){
@@ -118,23 +132,36 @@ void setup(){
     // TODO: Check if this ANSEL line can be removed
     ANSELA = 0;
     setup_dir();
-    setup_pwm();
+    setup_pwm(16);
+    pwm_period_us_ = get_period_us_pwm();
+    period_interrupt_pwm(1); // interrupt on every full period
     // slave on address _SLAVE_ADDRESS
     setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read);
-    setup_speed(on_speed_interrupt);
+    setup_speed();
 }
 
 void __interrupt() int_routine(void){
     if (SSPIF){ // received data through i2c
         process_interrupt_i2c();
-    } else if(CCP2IF){
-        process_interrupts_speed();
-    }
+    } else if(TMR2IF){
+        char low = TMR1L;
+        encoder_counts_ = (unsigned int) TMR1H << 8;
+        encoder_counts_ += low;
+        TMR1L = 0;
+        TMR1H = 0;
+        
+        TMR2IF = 0;
+    } else if(TMR1IF){
+        // speed is maxed out!
+        // TODO: Check how this impacts TMR2, the next TMR2 interrupt
+        // will measure incorrect speed
+        encoder_counts_ = UINT_MAX;
+        TMR1IF = 0;
+    } 
 }
 
 void main(void) {
     setup();
-    
     while(1){
         continue;
     }
