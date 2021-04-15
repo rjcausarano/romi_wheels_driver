@@ -48,9 +48,11 @@
 #define _XTAL_FREQ 16000000
 #define INSTRUCTION_FREQ 4000000
 #define _SLAVE_ADDRESS 4
-#define PWM_PERCENT_COMMAND 1
-#define WHEEL_DIR_COMMAND 2
-#define LED_COMMAND 5
+#define PWM_PERCENT_OFFSET 1
+#define WHEEL_DIR_OFFSET 2
+#define SPEED_LO_OFFSET 3
+#define SPEED_HI_OFFSET 4
+#define LED_OFFSET 5
 
 #include <xc.h>
 #include "pic_libs/i2c.h"
@@ -58,8 +60,9 @@
 #include "speed.h"
 #include <limits.h>
 
-char pwm_speed_ = 0;
-unsigned int encoder_counts_ = 0, pwm_period_us_ = 0;
+char pwm_speed_ = 0, speed_ps_ = 0xFF, pwm_overflows_ = 0, encoder_hi_ = 0, 
+        encoder_lo_ = 0;
+unsigned int pwm_period_us_ = 0;
 
 char get_led(){
     return RC3;
@@ -89,31 +92,37 @@ void set_dir(char fw_bw){
 }
 
 char on_byte_read(char offset){
+    char ret = 0xFF;
     switch(offset){
-        case LED_COMMAND:
-            return get_led();
+        case SPEED_HI_OFFSET:
+            ret = encoder_hi_;
             break;
-        case PWM_PERCENT_COMMAND:
-            return pwm_speed_;
+        case SPEED_LO_OFFSET:
+            ret = encoder_lo_;
             break;
-        case WHEEL_DIR_COMMAND:
-            return get_dir();
+        case LED_OFFSET:
+            ret = get_led();
             break;
-        default:
-            return 0xFF;
+        case PWM_PERCENT_OFFSET:
+            ret = pwm_speed_;
+            break;
+        case WHEEL_DIR_OFFSET:
+            ret = get_dir();
+            break;
     }
+    return ret;
 }
 
 void on_byte_write(char offset, char byte){
     switch(offset){
-        case LED_COMMAND:
+        case LED_OFFSET:
             set_led(byte);
             break;
-        case PWM_PERCENT_COMMAND:
+        case PWM_PERCENT_OFFSET:
             pwm_speed_ = byte;
             set_duty_percent_pwm(pwm_speed_);
             break;
-        case WHEEL_DIR_COMMAND:
+        case WHEEL_DIR_OFFSET:
             set_dir(byte);
             break;
     }
@@ -144,18 +153,22 @@ void __interrupt() int_routine(void){
     if (SSPIF){ // received data through i2c
         process_interrupt_i2c();
     } else if(TMR2IF){
-        char low = TMR1L;
-        encoder_counts_ = (unsigned int) TMR1H << 8;
-        encoder_counts_ += low;
-        TMR1L = 0;
-        TMR1H = 0;
+        pwm_overflows_++;
+        if(pwm_overflows_ >= speed_ps_){
+            encoder_lo_ = TMR1L;
+            encoder_hi_ = TMR1H;
+            TMR1L = 0;
+            TMR1H = 0;
+            pwm_overflows_ = 0;
+        }
         
         TMR2IF = 0;
     } else if(TMR1IF){
         // speed is maxed out!
         // TODO: Check how this impacts TMR2, the next TMR2 interrupt
         // will measure incorrect speed
-        encoder_counts_ = UINT_MAX;
+        encoder_lo_ = UCHAR_MAX;
+        encoder_hi_ = UCHAR_MAX;
         TMR1IF = 0;
     } 
 }
