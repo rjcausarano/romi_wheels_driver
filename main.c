@@ -48,6 +48,7 @@
 #define _XTAL_FREQ 16000000
 #define INSTRUCTION_FREQ 4000000
 #define _SLAVE_ADDRESS 4
+#define MOTOR_ENABLE_OFFSET 0
 #define PWM_PERCENT_OFFSET 1
 #define WHEEL_DIR_OFFSET 2
 #define SPEED_LO_OFFSET 3
@@ -72,10 +73,24 @@ void set_led(char on_off){
     RC3 = (__bit) on_off;
 }
 
+void enable_motor(char on_off){
+    RC5 = (__bit) !on_off;
+}
+
+char get_motor(){
+    return !RC5;
+}
+
 void setup_led(){
     ANSELC = 0;
     TRISC3 = 0;
     RC3 = 0;
+}
+
+void setup_motor(){
+    TRISC5 = 0;
+    // active low
+    RC5 = 1;
 }
 
 void setup_dir(){
@@ -109,6 +124,9 @@ char on_byte_read(char offset){
         case WHEEL_DIR_OFFSET:
             ret = get_dir();
             break;
+        case MOTOR_ENABLE_OFFSET:
+            ret = get_motor();
+            break;
     }
     return ret;
 }
@@ -125,6 +143,9 @@ void on_byte_write(char offset, char byte){
         case WHEEL_DIR_OFFSET:
             set_dir(byte);
             break;
+        case MOTOR_ENABLE_OFFSET:
+            enable_motor(byte);
+            break;
     }
 }
 
@@ -138,6 +159,7 @@ void setup_clock(){
 void setup(){
     setup_clock();
     setup_led();
+    setup_motor();
     // TODO: Check if this ANSEL line can be removed
     ANSELA = 0;
     setup_dir();
