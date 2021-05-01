@@ -106,28 +106,29 @@ void set_dir(char fw_bw){
     RA5 = (__bit) fw_bw;
 }
 
-void on_byte_read(char offset){
+char on_byte_read(char offset){
+    char ret = 0xFF;
     switch(offset){
         case SPEED_LO_OFFSET:
-            write_byte_i2c(encoder_lo_);
-            write_byte_i2c(encoder_hi_);
-            break;
-        case LED_OFFSET:
-            write_byte_i2c(get_led());
-            break;
-        case PWM_PERCENT_OFFSET:
-            write_byte_i2c(pwm_speed_);
-            break;
-        case WHEEL_DIR_OFFSET:
-            write_byte_i2c(get_dir());
-            break;
-        case MOTOR_ENABLE_OFFSET:
-            write_byte_i2c(get_motor());
+            ret = encoder_lo_;
             break;
         case SPEED_HI_OFFSET:
-            write_byte_i2c(encoder_hi_);
+            ret = encoder_hi_;
+            break;
+        case LED_OFFSET:
+            ret = get_led();
+            break;
+        case PWM_PERCENT_OFFSET:
+            ret = pwm_speed_;
+            break;
+        case WHEEL_DIR_OFFSET:
+            ret = get_dir();
+            break;
+        case MOTOR_ENABLE_OFFSET:
+            ret = get_motor();
             break;
     }
+    return ret;
 }
 
 void on_byte_write(char offset, char byte){
