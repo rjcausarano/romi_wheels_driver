@@ -62,7 +62,7 @@
 #include <limits.h>
 
 char pwm_speed_ = 0, speed_ps_ = 0xFF, pwm_overflows_ = 0, encoder_hi_ = 0, 
-        encoder_lo_ = 0;
+        encoder_lo_ = 0, encoder_update_allowed_ = 1;
 unsigned int pwm_period_us_ = 0;
 
 char get_led(){
@@ -110,10 +110,12 @@ char on_byte_read(char offset){
     char ret = 0xFF;
     switch(offset){
         case SPEED_LO_OFFSET:
+            encoder_update_allowed_ = 0;
             ret = encoder_lo_;
             break;
         case SPEED_HI_OFFSET:
             ret = encoder_hi_;
+            encoder_update_allowed_ = 1;
             break;
         case LED_OFFSET:
             ret = get_led();
@@ -172,23 +174,26 @@ void __interrupt() int_routine(void){
     if (SSPIF){ // received data through i2c
         process_interrupt_i2c();
     } else if(TMR2IF){
+        TMR2IF = 0;
+        
         pwm_overflows_++;
         if(pwm_overflows_ >= speed_ps_){
-            encoder_lo_ = TMR1L;
-            encoder_hi_ = TMR1H;
+            if(encoder_update_allowed_){
+                encoder_lo_ = TMR1L;
+                encoder_hi_ = TMR1H;
+            }
             TMR1L = 0;
             TMR1H = 0;
             pwm_overflows_ = 0;
         }
-        
-        TMR2IF = 0;
     } else if(TMR1IF){
+        TMR1IF = 0;
+
         // speed is maxed out!
         // TODO: Check how this impacts TMR2, the next TMR2 interrupt
         // will measure incorrect speed
         encoder_lo_ = UCHAR_MAX;
         encoder_hi_ = UCHAR_MAX;
-        TMR1IF = 0;
     } 
 }
 
