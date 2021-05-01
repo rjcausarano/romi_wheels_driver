@@ -74,11 +74,12 @@ void set_led(char on_off){
 }
 
 void enable_motor(char on_off){
-    RC5 = (__bit) !on_off;
+    RC5 = (__bit) on_off;
+    set_led(on_off);
 }
 
 char get_motor(){
-    return !RC5;
+    return RC5;
 }
 
 void setup_led(){
@@ -89,8 +90,7 @@ void setup_led(){
 
 void setup_motor(){
     TRISC5 = 0;
-    // active low
-    RC5 = 1;
+    enable_motor(0);
 }
 
 void setup_dir(){
@@ -133,9 +133,6 @@ char on_byte_read(char offset){
 
 void on_byte_write(char offset, char byte){
     switch(offset){
-        case LED_OFFSET:
-            set_led(byte);
-            break;
         case PWM_PERCENT_OFFSET:
             pwm_speed_ = byte;
             set_duty_percent_pwm(pwm_speed_);
