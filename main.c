@@ -47,7 +47,10 @@
 
 #define _XTAL_FREQ 16000000
 #define INSTRUCTION_FREQ 4000000
-#define _SLAVE_ADDRESS 4
+#define RIGHT_WHEEL 3
+#define LEFT_WHEEL 4
+// Here we set whether this PIC controls the left of right wheel.
+#define _SLAVE_ADDRESS LEFT_WHEEL
 #define MOTOR_ENABLE_OFFSET 0
 #define PWM_PERCENT_OFFSET 1
 #define WHEEL_DIR_OFFSET 2
