@@ -61,8 +61,7 @@
 #include "speed.h"
 #include <limits.h>
 
-char pwm_speed_ = 0, speed_ps_ = 0xFF, pwm_overflows_ = 0, encoder_hi_ = 0, 
-        encoder_lo_ = 0, encoder_update_allowed_ = 1;
+unsigned char pwm_speed_ = 0, encoder_hi_ = 0, encoder_lo_ = 0;
 unsigned int pwm_period_us_ = 0;
 
 char get_led(){
@@ -107,15 +106,19 @@ void set_dir(char fw_bw){
 }
 
 char on_byte_read(char offset){
-    char ret = 0xFF;
+    unsigned char ret = 0xFF;
     switch(offset){
         case SPEED_LO_OFFSET:
-            encoder_update_allowed_ = 0;
+            TMR1ON = 0;
+            encoder_hi_ = TMR1H;
+            encoder_lo_ = TMR1L;
+            TMR1L = 0;
+            TMR1H = 0;
+            TMR1ON = 1;
             ret = encoder_lo_;
             break;
         case SPEED_HI_OFFSET:
             ret = encoder_hi_;
-            encoder_update_allowed_ = 1;
             break;
         case LED_OFFSET:
             ret = get_led();
@@ -164,7 +167,7 @@ void setup(){
     setup_dir();
     setup_pwm(16);
     pwm_period_us_ = get_period_us_pwm();
-    period_interrupt_pwm(1); // interrupt on every full period
+    period_interrupt_pwm(0); // interrupt on every full period
     // slave on address _SLAVE_ADDRESS
     setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read);
     setup_speed();
@@ -173,19 +176,6 @@ void setup(){
 void __interrupt() int_routine(void){
     if (SSPIF){ // received data through i2c
         process_interrupt_i2c();
-    } else if(TMR2IF){
-        TMR2IF = 0;
-        
-        pwm_overflows_++;
-        if(pwm_overflows_ >= speed_ps_){
-            if(encoder_update_allowed_){
-                encoder_lo_ = TMR1L;
-                encoder_hi_ = TMR1H;
-            }
-            TMR1L = 0;
-            TMR1H = 0;
-            pwm_overflows_ = 0;
-        }
     } else if(TMR1IF){
         TMR1IF = 0;
 

@@ -13,7 +13,6 @@ extern "C" {
 #endif
 
 void setup_speed(void);
-// void process_interrupts_speed(void);
 
 #ifdef	__cplusplus
 }
