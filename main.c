@@ -65,11 +65,12 @@
 #include "pic_libs/i2c.h"
 #include "pic_libs/pwm.h"
 #include "speed.h"
+#include "pic_libs/pid.h"
 #include <limits.h>
 
 unsigned char pwm_speed_ = 0, encoder_hi_ = 0, encoder_lo_ = 0, 
         speed_set_point_lo_ = 0;
-unsigned int pwm_period_us_ = 0, speed_set_point_ = 0;
+unsigned int pwm_period_us_ = 0, speed_set_point_ = 0, current_speed_ = 0;
 
 char get_led(){
     return RC3;
@@ -112,6 +113,16 @@ void set_dir(char fw_bw){
     RA5 = (__bit) fw_bw;
 }
 
+void set_speed(int speed){
+    int duty = get_duty_cycle_pwm() + speed;
+    if(duty < 0){
+        duty = 0;
+    } else if(duty > 1023){
+        duty = 1023;
+    }
+    set_duty_cycle_pwm((unsigned int) duty);
+}
+
 char on_byte_read(char offset){
     unsigned char ret = 0xFF;
     switch(offset){
@@ -121,6 +132,9 @@ char on_byte_read(char offset){
             encoder_lo_ = TMR1L;
             TMR1L = 0;
             TMR1H = 0;
+            current_speed_ = ((unsigned int) encoder_hi_) << 8;
+            current_speed_ += encoder_lo_;
+            set_speed(do_pid(current_speed_, speed_set_point_));
             TMR1ON = 1;
             ret = encoder_lo_;
             break;
