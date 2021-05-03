@@ -57,6 +57,9 @@
 #define SPEED_LO_OFFSET 3
 #define SPEED_HI_OFFSET 4
 #define LED_OFFSET 5
+#define A_OFFSET 6
+#define B_OFFSET 7
+#define C_OFFSET 8
 
 #include <xc.h>
 #include "pic_libs/i2c.h"
@@ -64,8 +67,9 @@
 #include "speed.h"
 #include <limits.h>
 
-unsigned char pwm_speed_ = 0, encoder_hi_ = 0, encoder_lo_ = 0;
-unsigned int pwm_period_us_ = 0;
+unsigned char pwm_speed_ = 0, encoder_hi_ = 0, encoder_lo_ = 0, 
+        speed_set_point_lo_ = 0;
+unsigned int pwm_period_us_ = 0, speed_set_point_ = 0;
 
 char get_led(){
     return RC3;
@@ -141,6 +145,13 @@ char on_byte_read(char offset){
 
 void on_byte_write(char offset, char byte){
     switch(offset){
+        case SPEED_LO_OFFSET:
+            speed_set_point_lo_ = byte;
+            break;
+        case SPEED_HI_OFFSET:
+            speed_set_point_ = ((unsigned int) byte) << 8;
+            speed_set_point_ += speed_set_point_lo_;
+            break;
         case PWM_PERCENT_OFFSET:
             pwm_speed_ = byte;
             set_duty_percent_pwm(pwm_speed_);
