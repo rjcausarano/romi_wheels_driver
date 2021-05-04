@@ -57,19 +57,17 @@
 #define SPEED_LO_OFFSET 3
 #define SPEED_HI_OFFSET 4
 #define LED_OFFSET 5
-#define A_OFFSET 6
-#define B_OFFSET 7
-#define C_OFFSET 8
+#define PWM_LO_OFFSET 6
+#define PWM_HI_OFFSET 7
 
 #include <xc.h>
 #include "pic_libs/i2c.h"
 #include "pic_libs/pwm.h"
-#include "speed.h"
+#include "encoder.h"
 #include <limits.h>
 
-unsigned char pwm_speed_ = 0, encoder_hi_ = 0, encoder_lo_ = 0, 
-        speed_set_point_lo_ = 0;
-unsigned int pwm_period_us_ = 0, speed_set_point_ = 0;
+unsigned char pwm_speed_percent_ = 0, pwm_speed_lo_ = 0;
+unsigned int pwm_period_us_ = 0, encoder_counts_ = 0, pwm_speed_ = 0;;
 
 char get_led(){
     return RC3;
@@ -89,7 +87,6 @@ char get_motor(){
 }
 
 void setup_led(){
-    ANSELC = 0;
     TRISC3 = 0;
     RC3 = 0;
 }
@@ -116,22 +113,19 @@ char on_byte_read(char offset){
     unsigned char ret = 0xFF;
     switch(offset){
         case SPEED_LO_OFFSET:
-            TMR1ON = 0;
-            encoder_hi_ = TMR1H;
-            encoder_lo_ = TMR1L;
-            TMR1L = 0;
-            TMR1H = 0;
-            TMR1ON = 1;
-            ret = encoder_lo_;
+            IOCIE = 0;
+            ret = (char) encoder_counts_;
             break;
         case SPEED_HI_OFFSET:
-            ret = encoder_hi_;
+            ret = (char) (encoder_counts_ << 8);
+            encoder_counts_ = 0;
+            IOCIE = 1;
             break;
         case LED_OFFSET:
             ret = get_led();
             break;
         case PWM_PERCENT_OFFSET:
-            ret = pwm_speed_;
+            ret = pwm_speed_percent_;
             break;
         case WHEEL_DIR_OFFSET:
             ret = get_dir();
@@ -145,16 +139,16 @@ char on_byte_read(char offset){
 
 void on_byte_write(char offset, char byte){
     switch(offset){
-        case SPEED_LO_OFFSET:
-            speed_set_point_lo_ = byte;
+        case PWM_LO_OFFSET:
+            pwm_speed_lo_ = byte;
             break;
-        case SPEED_HI_OFFSET:
-            speed_set_point_ = ((unsigned int) byte) << 8;
-            speed_set_point_ += speed_set_point_lo_;
+        case PWM_HI_OFFSET:
+            pwm_speed_ = ((unsigned int) byte) << 8;
+            pwm_speed_ += pwm_speed_lo_;
             break;
         case PWM_PERCENT_OFFSET:
-            pwm_speed_ = byte;
-            set_duty_percent_pwm(pwm_speed_);
+            pwm_speed_percent_ = byte;
+            set_duty_percent_pwm(pwm_speed_percent_);
             break;
         case WHEEL_DIR_OFFSET:
             set_dir(byte);
@@ -173,32 +167,28 @@ void setup_clock(){
 }
 
 void setup(){
+    ANSELA = 0;
+    ANSELC = 0;
+
     setup_clock();
     setup_led();
     setup_motor();
-    // TODO: Check if this ANSEL line can be removed
-    ANSELA = 0;
     setup_dir();
     setup_pwm(16);
     pwm_period_us_ = get_period_us_pwm();
     period_interrupt_pwm(0); // interrupt on every full period
     // slave on address _SLAVE_ADDRESS
     setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read);
-    setup_speed();
+    setup_encoder();
 }
 
 void __interrupt() int_routine(void){
-    if (SSPIF){ // received data through i2c
+    if(IOCIF){
+        IOCIF = 0;
+        encoder_counts_++;
+    } else if(SSPIF){ // received data through i2c
         process_interrupt_i2c();
-    } else if(TMR1IF){
-        TMR1IF = 0;
-
-        // speed is maxed out!
-        // TODO: Check how this impacts TMR2, the next TMR2 interrupt
-        // will measure incorrect speed
-        encoder_lo_ = UCHAR_MAX;
-        encoder_hi_ = UCHAR_MAX;
-    } 
+    }
 }
 
 void main(void) {
