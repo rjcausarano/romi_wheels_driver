@@ -65,7 +65,7 @@
 #include "pic_libs/pwm.h"
 #include "encoder.h"
 
-unsigned char pwm_speed_percent_ = 0, pwm_speed_lo_ = 0;
+unsigned char pwm_speed_percent_ = 0, pwm_speed_lo_ = 0, wheel_direction_ = 0;
 unsigned int pwm_period_us_ = 0, encoder_counts_ = 0, pwm_speed_ = 0;;
 
 char get_led(){
@@ -101,7 +101,7 @@ void setup_dir(){
 }
 
 char get_dir(){
-    return RA5;
+    return wheel_direction_;
 }
 
 void set_dir(char fw_bw){
@@ -186,6 +186,14 @@ void __interrupt() int_routine(void){
         process_interrupt_i2c();
     } else if(IOCIF){
         IOCIF = 0;
+        if(IOCAF){
+            // 1: forward | 0: backward
+            if(RC0 == RA2){
+                wheel_direction_ = 1;
+            } else{
+                wheel_direction_ = 0;
+            }
+        }
         IOCAF = 0;
         IOCCF = 0;
         encoder_counts_++;
