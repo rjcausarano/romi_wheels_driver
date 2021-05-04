@@ -159,6 +159,14 @@ void on_byte_write(char offset, char byte){
     }
 }
 
+void on_begin_transaction_i2c(){
+    IOCIE = 0;
+}
+
+void on_end_transaction_i2c(){
+    IOCIE = 1;
+}
+
 void setup_clock(){
     IRCF3 = 1;
     IRCF2 = 1;
@@ -179,15 +187,17 @@ void setup(){
     period_interrupt_pwm(0); // interrupt on every full period
     // slave on address _SLAVE_ADDRESS
     setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read);
+    set_transaction_callbacks_i2c(on_begin_transaction_i2c, 
+            on_end_transaction_i2c);
     setup_encoder();
 }
 
 void __interrupt() int_routine(void){
-    if(IOCIF){
+    if(SSPIF){ // received data through i2c
+        process_interrupt_i2c();
+    } else if(IOCIF){
         IOCIF = 0;
         encoder_counts_++;
-    } else if(SSPIF){ // received data through i2c
-        process_interrupt_i2c();
     }
 }
 
