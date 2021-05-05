@@ -65,8 +65,9 @@
 #include "pic_libs/pwm.h"
 #include "encoder.h"
 
-unsigned char pwm_speed_percent_ = 0, pwm_speed_lo_ = 0;
-unsigned int pwm_period_us_ = 0, encoder_counts_ = 0, pwm_speed_ = 0;;
+unsigned char pwm_speed_percent_ = 0, pwm_pid_speed_lo_ = 0;
+unsigned int pwm_period_us_ = 0, encoder_counts_ = 0;
+int pwm_pid_speed_ = 0;
 
 char get_led(){
     return RC3;
@@ -108,6 +109,17 @@ void set_dir(char fw_bw){
     RA5 = (__bit) fw_bw;
 }
 
+void set_pwm_pid_speed(){
+    int speed = (int) get_duty_cycle_pwm();
+    speed += pwm_pid_speed_;
+    if(speed < 0){
+        speed = 0;
+    } else if (speed > 1023){
+        speed = 1023;
+    }
+    set_duty_cycle_pwm((unsigned int) speed);
+}
+
 char on_byte_read(char offset){
     unsigned char ret = 0xFF;
     switch(offset){
@@ -139,11 +151,12 @@ char on_byte_read(char offset){
 void on_byte_write(char offset, char byte){
     switch(offset){
         case PWM_LO_OFFSET:
-            pwm_speed_lo_ = byte;
+            pwm_pid_speed_lo_ = byte;
             break;
         case PWM_HI_OFFSET:
-            pwm_speed_ = ((unsigned int) byte) << 8;
-            pwm_speed_ += pwm_speed_lo_;
+            pwm_pid_speed_ = ((int) byte) << 8;
+            pwm_pid_speed_ += pwm_pid_speed_lo_;
+            set_pwm_pid_speed();
             break;
         case PWM_PERCENT_OFFSET:
             pwm_speed_percent_ = byte;
