@@ -193,7 +193,6 @@ void setup(){
     // slave on address _SLAVE_ADDRESS
     setup_i2c(0, _SLAVE_ADDRESS + is_right_wheel_, on_byte_write, on_byte_read);
     setup_encoder();
-    set_led(1);
 }
 
 void __interrupt() int_routine(void){
