@@ -47,10 +47,8 @@
 
 #define _XTAL_FREQ 16000000
 #define INSTRUCTION_FREQ 4000000
-#define RIGHT_WHEEL 3
-#define LEFT_WHEEL 4
 // Here we set whether this PIC controls the left of right wheel.
-#define _SLAVE_ADDRESS LEFT_WHEEL
+#define _SLAVE_ADDRESS 3
 #define MOTOR_ENABLE_OFFSET 0
 #define PWM_PERCENT_OFFSET 1
 #define WHEEL_DIR_OFFSET 2
@@ -65,7 +63,8 @@
 #include "pic_libs/pwm.h"
 #include "encoder.h"
 
-unsigned char pwm_speed_percent_ = 0, pwm_pid_speed_lo_ = 0;
+unsigned char pwm_speed_percent_ = 0, pwm_pid_speed_lo_ = 0, 
+        is_right_wheel_ = 0;
 unsigned int pwm_period_us_ = 0, encoder_counts_ = 0;
 int pwm_pid_speed_ = 0;
 
@@ -94,6 +93,8 @@ void setup_led(){
 void setup_motor(){
     TRISC5 = 0;
     enable_motor(0);
+    TRISC4 = 1;
+    is_right_wheel_ = RC4;
 }
 
 void setup_dir(){
@@ -190,8 +191,9 @@ void setup(){
     pwm_period_us_ = get_period_us_pwm();
     period_interrupt_pwm(0); // interrupt on every full period
     // slave on address _SLAVE_ADDRESS
-    setup_i2c(0, _SLAVE_ADDRESS, on_byte_write, on_byte_read);
+    setup_i2c(0, _SLAVE_ADDRESS + is_right_wheel_, on_byte_write, on_byte_read);
     setup_encoder();
+    set_led(1);
 }
 
 void __interrupt() int_routine(void){
